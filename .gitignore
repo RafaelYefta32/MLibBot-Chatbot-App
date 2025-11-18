@@ -7,11 +7,7 @@ venv/
 .env/
 
 # Backend data only
-backend/data/
 backend/vectorstore/
-backend/*.pdf
-backend/*.xlsx
-backend/*.csv
 
 # Node modules (frontend)
 frontend/node_modules/
