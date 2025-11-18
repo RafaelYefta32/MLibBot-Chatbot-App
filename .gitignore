@@ -6,12 +6,12 @@ __pycache__/
 venv/
 .env/
 
-# Backend data
+# Backend data only
 backend/data/
 backend/vectorstore/
-*.pdf
-*.xlsx
-*.csv
+backend/*.pdf
+backend/*.xlsx
+backend/*.csv
 
 # Node modules (frontend)
 frontend/node_modules/
