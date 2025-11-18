@@ -1,0 +1,30 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+.env/
+
+# Backend data
+backend/data/
+backend/vectorstore/
+*.pdf
+*.xlsx
+*.csv
+
+# Node modules (frontend)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# Models
+*.gguf
+*.bin
+*.pt
+
+# Logs
+*.log
+
+# VSCode temp
+.vscode/
