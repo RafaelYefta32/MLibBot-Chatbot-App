@@ -34,7 +34,9 @@ def call_ollama(prompt: str, model: str = "qwen2.5:0.5b") -> str:
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True
+        text=True,
+        encoding="utf-8",
+        errors="replace"
     )
 
     out, err = process.communicate(prompt)
