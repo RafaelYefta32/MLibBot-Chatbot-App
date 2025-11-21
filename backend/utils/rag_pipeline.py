@@ -25,8 +25,8 @@ Jika informasi tidak ada di konteks, jawab bahwa informasinya tidak tersedia.
     return prompt.strip()
 
 
-def call_ollama(prompt: str, model: str = "qwen2.5:0.5b") -> str:
-    """Memanggil Ollama model ringan qwen2.5:0.5b."""
+def call_ollama(prompt: str, model: str = "qwen2.5:1.5b") -> str:
+    """Memanggil Ollama model ringan qwen2.5:1.5b."""
     cmd = ["ollama", "run", model]
 
     process = subprocess.Popen(

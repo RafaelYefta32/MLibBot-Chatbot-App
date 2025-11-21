@@ -1,7 +1,5 @@
 # backend/utils/preprocess.py
-"""
-Pembersihan sederhana untuk teks ekstrak dari PDF / Excel.
-"""
+
 import re
 
 def clean_text(text: str) -> str:

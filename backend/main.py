@@ -1,5 +1,6 @@
 # backend/main.py
 
+import os
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
@@ -7,44 +8,20 @@ from qdrant_client import QdrantClient
 from utils.rag_pipeline import build_prompt, call_ollama
 from pathlib import Path
 
-# ======================================================
-# KONFIGURASI PATH
-# ======================================================
-
+os.environ["SENTENCE_TRANSFORMERS_HOME"] = "D:/model embedding"
 BASE_DIR = Path(__file__).resolve().parent
 VECTOR_DIR = BASE_DIR / "vectorstore"
 COLLECTION = "mlibbot"
 
-# ======================================================
-# LOAD QDRANT LOCAL
-# ======================================================
-
 client = QdrantClient(path=str(VECTOR_DIR))
 
-# ======================================================
-# LOAD EMBEDDING MODEL
-# ======================================================
-
-EMBED = SentenceTransformer("all-MiniLM-L6-v2")
-
-# ======================================================
-# FASTAPI INIT
-# ======================================================
+EMBED = SentenceTransformer("intfloat/multilingual-e5-base")
 
 app = FastAPI()
-
-# ======================================================
-# REQUEST BODY
-# ======================================================
 
 class ChatRequest(BaseModel):
     message: str
     top_k: int = 4
-
-
-# ======================================================
-# ENDPOINT CHATBOT RAG
-# ======================================================
 
 @app.post("/chat")
 def chat(req: ChatRequest):
@@ -78,19 +55,9 @@ def chat(req: ChatRequest):
         "sources": contexts
     }
 
-
-# ======================================================
-# ENDPOINT HEALTH TESTING
-# ======================================================
-
 @app.get("/health")
 def health():
     return {"status": "ok", "vector_db": "qdrant", "llm": "qwen2.5:0.5b"}
-
-
-# ======================================================
-# ENDPOINT PENGUJIAN
-# ======================================================
 
 @app.post("/test/embed")
 def test_embed(req: ChatRequest):

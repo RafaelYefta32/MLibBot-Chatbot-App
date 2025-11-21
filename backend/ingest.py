@@ -1,3 +1,4 @@
+import os
 from qdrant_client import QdrantClient
 from qdrant_client.models import VectorParams, Distance, PointStruct
 from sentence_transformers import SentenceTransformer
@@ -6,6 +7,7 @@ from pathlib import Path
 from utils.splitter import chunk_text
 from utils.preprocess import clean_text
 
+os.environ["SENTENCE_TRANSFORMERS_HOME"] = "D:/model embedding"
 BASE = Path(__file__).resolve().parent
 DATA = BASE / "data"
 VECTOR = BASE / "vectorstore"
@@ -14,7 +16,7 @@ VECTOR.mkdir(exist_ok=True)
 CATALOG = DATA / "hasil_catalog_v1.xlsx"
 PDF = DATA / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
 
-EMBED = SentenceTransformer("all-MiniLM-L6-v2")
+EMBED = SentenceTransformer("intfloat/multilingual-e5-base") # model embedding
 
 client = QdrantClient(path=str(VECTOR))  # local file-based storage
 
@@ -26,7 +28,7 @@ def recreate_collection():
 
     client.create_collection(
         COLLECTION_NAME,
-        vectors_config=VectorParams(size=384, distance=Distance.COSINE)
+        vectors_config=VectorParams(size=768, distance=Distance.COSINE)
     )
 
 def ingest_catalog():
@@ -36,12 +38,14 @@ def ingest_catalog():
 
     for i, row in df.iterrows():
         text = clean_text(
-            f"Judul: {row.get('judul','')}\n"
-            f"Pengarang: {row.get('pengarang','')}\n"
-            f"CallNumber: {row.get('call_number','')}\n"
-            f"Status: {row.get('status','')}\n"
-            f"Lokasi: {row.get('lokasi','')}\n"
-            f"Ringkasan: {row.get('ringkasan','')}"
+            f"Judul: {row.get('title','')}\n,"
+            f"Penulis: {row.get('authors','')}\n,"
+            f"Tahun: {row.get('year','')}\n,"
+            f"ISBN: {row.get('isbn','')}\n,"
+            f"Penerbit: {row.get('publisher','')}\n,"
+            f"Bahasa: {row.get('language','')},"
+            f"Lokasi: {row.get('location','')},"
+            f"Status: {row.get('availability','')},"
         )
         docs.append(("catalog_"+str(i), text, {"source":"catalog","source_id":str(i)}))
     return docs
