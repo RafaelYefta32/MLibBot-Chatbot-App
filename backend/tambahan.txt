@@ -1,0 +1,14 @@
+1. buat env
+conda create -n mlibbot2 python=3.10 -y
+2. activate
+conda activate mlibbot2
+3. conda install -n mlibbot2 -c conda-forge "spacy>=3.7,<3.8" "numpy>=1.23,<2.0" pandas scipy scikit-learn -y
+4. python -m pip install --upgrade pip
+5. pip install -r requirements.txt
+6. conda install -n mlibbot2 -c pytorch faiss-cpu -y
+7. pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+
+// run 
+python ingest.py
+uvicorn main:app --reload --port 8000

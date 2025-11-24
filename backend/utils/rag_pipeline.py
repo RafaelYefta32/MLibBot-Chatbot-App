@@ -1,12 +1,16 @@
-# utils/rag_pipeline.py
+import os
+import requests
+from dotenv import load_dotenv
 
-import subprocess
+load_dotenv()
+GROQ_API_KEY = os.getenv("groq_api")
 
 def build_prompt(question: str, contexts: list) -> str:
-    """Menyusun prompt untuk RAG."""
     context_texts = "\n\n".join(
-        [f"- {c['text']}\n(Sumber: {c['source']} / {c['source_id']})"
-         for c in contexts]
+        [
+            f"- {c['text']}\n(Sumber: {c['source']} / {c['source_id']})"
+            for c in contexts
+        ]
     )
 
     prompt = f"""
@@ -21,27 +25,47 @@ Pertanyaan:
 
 Jika informasi tidak ada di konteks, jawab bahwa informasinya tidak tersedia.
 """
-
     return prompt.strip()
 
+def call_groq(prompt: str, model: str = "llama-3.1-8b-instant") -> str:
+    if not GROQ_API_KEY:
+        raise RuntimeError("APi nya woy belumd dibikin")
 
-def call_ollama(prompt: str, model: str = "qwen2.5:1.5b") -> str:
-    """Memanggil Ollama model ringan qwen2.5:1.5b."""
-    cmd = ["ollama", "run", model]
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
-    process = subprocess.Popen(
-        cmd,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace"
+    system_content = (
+        "Kamu adalah MLibBot, chatbot perpustakaan Universitas Kristen Maranatha. "
+        "Jawab dalam bahasa Indonesia yang singkat, jelas, dan langsung ke inti. "
+        "Untuk pertanyaan faktual (misalnya jam buka, lokasi, nomor kontak, jumlah hari keterlambatan, dll.), "
+        "langsung berikan jawabannya di kalimat pertama. "
+        "Jika perlu, tambahkan maksimal satu kalimat penjelasan tambahan. "
+        "JANGAN menyebut-nyebut 'dokumen', 'bagian dokumen', 'informasi dapat ditemukan pada', "
+        "atau mengutip teks panjang apa adanya. "
+        "Jawab hanya berdasarkan konteks yang diberikan. "
+        "Jika informasi yang diminta tidak ada dalam konteks, jawab dengan sopan bahwa informasi tersebut tidak tersedia."
     )
 
-    out, err = process.communicate(prompt)
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": system_content,
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
+        ],
+        "temperature": 0.2,
+    }
 
-    if err and "error" in err.lower():
-        print("OLLAMA ERROR:", err)
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json",
+    }
 
-    return out.strip()
+    resp = requests.post(url, json=payload, headers=headers, timeout=60)
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip()
