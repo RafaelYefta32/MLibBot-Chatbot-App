@@ -17,3 +17,6 @@ Cara Menjalankan Backend:
      - jalankan "python ingest.py"
   6. Jalankan Backend FastAPI
      - uvicorn main:app --reload --port 8000
+  7. Test
+     - contoh : jalankan http://localhost:8000/test/ask?q=jam%20operasional%20perpustakaan
+     - bisa ganti bagian q=... 
