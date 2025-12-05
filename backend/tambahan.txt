@@ -11,5 +11,7 @@ conda activate mlibbot2
 
 // run 
 jalanin dulu ipynb nya bro
+download model indobert di drive, di github gabisa kegedean
+drive: https://drive.google.com/file/d/16uXmBjU0RXV7hoUWFP_MOuVVuTGcFjG3/view?usp=sharing
 python ingest.py
 uvicorn main:app --reload --port 8000
