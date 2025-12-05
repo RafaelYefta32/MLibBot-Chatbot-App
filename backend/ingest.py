@@ -1,16 +1,12 @@
-# ingest.py
-
 import json
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pdfplumber
-import faiss
-from rank_bm25 import BM25Okapi
+import faiss 
+from rank_bm25 import BM25Okapi 
 import joblib
 from sentence_transformers import SentenceTransformer
-
 from utils.preprocess import clean_text
 from utils.splitter import chunk_text
 
@@ -23,7 +19,6 @@ CATALOG = DATA / "hasil_catalog_v2.xlsx"
 PDF = DATA / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
 
 INDOBERT_MODEL_NAME = "LazarusNLP/all-indobert-base-v4"
-
 
 def load_docs():
     docs = []
@@ -63,10 +58,8 @@ def load_docs():
 
     return docs
 
-
 def tokenize(text: str):
     return text.lower().split()
-
 
 def main():
     docs = load_docs()
@@ -101,8 +94,7 @@ def main():
     with open(VECTOR_DIR / "docs.json", "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=2)
 
-    print("[OK] Ingest selesai. BM25 dan IndoBERT+FAISS siap dipakai.")
-
+    print("[INFO] Ingest selesai. BM25 dan IndoBERT+FAISS siap dipakai.")
 
 if __name__ == "__main__":
     main()

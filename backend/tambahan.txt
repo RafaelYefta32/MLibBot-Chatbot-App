@@ -10,5 +10,6 @@ conda activate mlibbot2
 
 
 // run 
+jalanin dulu ipynb nya bro
 python ingest.py
 uvicorn main:app --reload --port 8000
