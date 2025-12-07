@@ -1,25 +1,20 @@
 import json
 from pathlib import Path
-
-import faiss
+import faiss 
 import numpy as np
 import joblib
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
-
 from utils.rag_pipeline import build_prompt, call_groq
 from utils.intent import predict_intent, predict_intent_proba
 
-
 BASE_DIR = Path(__file__).resolve().parent
 VECTOR_DIR = BASE_DIR / "vectorstore"
-
 INDOBERT_MODEL_NAME = "LazarusNLP/all-indobert-base-v4"
-
 bm25 = joblib.load(VECTOR_DIR / "bm25.pkl")
 
-# faiss_tfidf_index = faiss.read_index(str(VECTOR_DIR / "faiss_tfidf.index"))
+faiss_tfidf_index = faiss.read_index(str(VECTOR_DIR / "faiss_tfidf.index"))
 
 indo_embeddings = np.load(VECTOR_DIR / "indo_embeddings.npy")
 faiss_indo_index = faiss.read_index(str(VECTOR_DIR / "faiss_indo.index"))
@@ -68,7 +63,6 @@ def retrieve_bm25(query: str, top_k: int):
         )
     return results
 
-
 def retrieve_faiss(query: str, top_k: int):
     """
     Retrieval utama: IndoBERT + FAISS (semantic search).
@@ -95,7 +89,6 @@ def retrieve_faiss(query: str, top_k: int):
             }
         )
     return results
-
 
 def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
     # alpha = bobot BM25 (0.5 50% BM25, 50% IndoBERT)
@@ -141,7 +134,6 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
         )
     return results
 
-
 @app.get("/health")
 def health():
     return {
@@ -149,7 +141,6 @@ def health():
         "vector_db": "bm25 + indoBERT+faiss",
         "docs_count": len(DOCS),
     }
-
 
 @app.post("/test/retrieve")
 def test_retrieve(req: ChatRequest):
@@ -160,7 +151,6 @@ def test_retrieve(req: ChatRequest):
     else:  # "hybrid"
         hits = retrieve_hybrid(req.message, req.top_k)
     return {"query": req.message, "results": hits}
-
 
 @app.post("/test/compare")
 def test_compare(req: ChatRequest):
@@ -174,7 +164,6 @@ def test_compare(req: ChatRequest):
         "faiss_indobert": faiss_hits,
         "hybrid": hybrid_hits,
     }
-
 
 @app.post("/chat")
 def chat(req: ChatRequest):
