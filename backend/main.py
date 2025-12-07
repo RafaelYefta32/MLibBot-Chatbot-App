@@ -19,7 +19,7 @@ INDOBERT_MODEL_NAME = "LazarusNLP/all-indobert-base-v4"
 
 bm25 = joblib.load(VECTOR_DIR / "bm25.pkl")
 
-faiss_tfidf_index = faiss.read_index(str(VECTOR_DIR / "faiss_tfidf.index"))
+# faiss_tfidf_index = faiss.read_index(str(VECTOR_DIR / "faiss_tfidf.index"))
 
 indo_embeddings = np.load(VECTOR_DIR / "indo_embeddings.npy")
 faiss_indo_index = faiss.read_index(str(VECTOR_DIR / "faiss_indo.index"))

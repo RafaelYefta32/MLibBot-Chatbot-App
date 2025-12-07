@@ -1,26 +1,166 @@
-@import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@media (prefers-color-scheme: dark) {
+
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* Sky/Cyan color palette */
+    --background: 200 30% 97%;
+    --foreground: 200 20% 15%;
+
+    --card: 200 40% 99%;
+    --card-foreground: 200 20% 15%;
+
+    --popover: 200 40% 99%;
+    --popover-foreground: 200 20% 15%;
+
+    --primary: 190 75% 45%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 60% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 200 20% 92%;
+    --muted-foreground: 200 15% 45%;
+
+    --accent: 195 80% 92%;
+    --accent-foreground: 200 20% 15%; 
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 20% 88%;
+    --input: 200 20% 88%;
+    --ring: 190 75% 45%;  
+
+    --radius: 0.75rem;
+    
+    /* Custom gradients and effects */
+    --gradient-primary: linear-gradient(135deg, hsl(190 75% 45%) 0%, hsl(200 80% 50%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(200 30% 97%) 0%, hsl(200 25% 94%) 100%);
+    --shadow-soft: 0 2px 8px -2px hsl(190 75% 45% / 0.12);
+    --shadow-elevated: 0 8px 24px -4px hsl(190 75% 45% / 0.18);
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 200 30% 8%;
+    --foreground: 200 20% 92%;
+
+    --card: 200 25% 12%;
+    --card-foreground: 200 20% 92%;
+
+    --popover: 200 25% 12%;
+    --popover-foreground: 200 20% 92%;
+
+    --primary: 190 80% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 65% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 200 20% 18%;
+    --muted-foreground: 200 15% 65%;
+
+    --accent: 200 30% 16%;
+    --accent-foreground: 200 20% 92%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 20% 22%;
+    --input: 200 20% 22%;
+    --ring: 190 80% 50%;
+    
+    --gradient-primary: linear-gradient(135deg, hsl(190 80% 50%) 0%, hsl(200 85% 55%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(200 30% 8%) 0%, hsl(200 28% 12%) 100%);
+    --shadow-soft: 0 2px 8px -2px hsl(190 80% 50% / 0.2);
+    --shadow-elevated: 0 8px 24px -4px hsl(190 80% 50% / 0.3);
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
 }
