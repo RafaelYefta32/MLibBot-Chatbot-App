@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-def chunk_text(text: str, chunk_size: int = 250, overlap: int = 50) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 200, overlap: int = 50) -> List[str]:
     text = re.sub(r"\s+", " ", text).strip()
     words = text.split(" ")
     chunks = []

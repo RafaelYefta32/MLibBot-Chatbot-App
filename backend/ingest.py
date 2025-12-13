@@ -10,21 +10,21 @@ from sentence_transformers import SentenceTransformer
 from utils.preprocess import clean_text
 from utils.splitter import chunk_text
 
-BASE = Path(__file__).resolve().parent
-DATA = BASE / "data"
-VECTOR_DIR = BASE / "vectorstore"
-VECTOR_DIR.mkdir(exist_ok=True)
+base = Path(__file__).resolve().parent
+data = base / "data"
+vector_dir = base / "vectorstore"
+vector_dir.mkdir(exist_ok=True)
 
-CATALOG = DATA / "hasil_catalog_v2.xlsx"
-PDF = DATA / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
+catalog = data / "hasil_catalog_v2.xlsx"
+pdf = data / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
 
-INDOBERT_MODEL_NAME = "LazarusNLP/all-indobert-base-v4"
+indobert_model = "LazarusNLP/all-indobert-base-v4"
 
 def load_docs():
     docs = []
 
     # 1) katalog Excel
-    df = pd.read_excel(CATALOG)
+    df = pd.read_excel(catalog)
     df.columns = [c.lower().strip() for c in df.columns]
 
     for i, row in df.iterrows():
@@ -43,7 +43,7 @@ def load_docs():
         )
 
     # 2) PDF operasional
-    with pdfplumber.open(PDF) as pdf:
+    with pdfplumber.open(pdf) as pdf:
         for p, page in enumerate(pdf.pages):
             raw = clean_text(page.extract_text() or "")
             chunks = chunk_text(raw, 200, 50)
@@ -70,10 +70,10 @@ def main():
 
     print("[INFO] Bangun index BM25...")
     bm25 = BM25Okapi(tokens)
-    joblib.dump(bm25, VECTOR_DIR / "bm25.pkl")
+    joblib.dump(bm25, vector_dir / "bm25.pkl")
 
     print("[INFO] Bangun embedding IndoBERT...")
-    model = SentenceTransformer(INDOBERT_MODEL_NAME)
+    model = SentenceTransformer(indobert_model)
 
     indo_embeddings = model.encode(
         texts,
@@ -83,15 +83,15 @@ def main():
         normalize_embeddings=True,  # L2-normalized
     ).astype(np.float32)
 
-    np.save(VECTOR_DIR / "indo_embeddings.npy", indo_embeddings)
+    np.save(vector_dir / "indo_embeddings.npy", indo_embeddings)
 
     print("[INFO] Bangun index FAISS IndoBERT...")
     dim_indo = indo_embeddings.shape[1]
     faiss_indo_index = faiss.IndexFlatIP(dim_indo)
     faiss_indo_index.add(indo_embeddings)
-    faiss.write_index(faiss_indo_index, str(VECTOR_DIR / "faiss_indo.index"))
+    faiss.write_index(faiss_indo_index, str(vector_dir / "faiss_indo.index"))
 
-    with open(VECTOR_DIR / "docs.json", "w", encoding="utf-8") as f:
+    with open(vector_dir / "docs.json", "w", encoding="utf-8") as f:
         json.dump(docs, f, ensure_ascii=False, indent=2)
 
     print("[INFO] Ingest selesai. BM25 dan IndoBERT+FAISS siap dipakai.")

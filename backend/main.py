@@ -7,21 +7,18 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from utils.rag_pipeline import build_prompt, call_groq
-from utils.intent import predict_intent, predict_intent_proba
+from utils.intent import predict_intent, predict_intent_proba #, predict_intent_conf
 
-BASE_DIR = Path(__file__).resolve().parent
-VECTOR_DIR = BASE_DIR / "vectorstore"
-INDOBERT_MODEL_NAME = "LazarusNLP/all-indobert-base-v4"
-bm25 = joblib.load(VECTOR_DIR / "bm25.pkl")
+base = Path(__file__).resolve().parent
+vector_dir = base / "vectorstore"
+indobert_model = "LazarusNLP/all-indobert-base-v4"
+bm25 = joblib.load(vector_dir / "bm25.pkl")
+indo_embeddings = np.load(vector_dir / "indo_embeddings.npy")
+faiss_indo_index = faiss.read_index(str(vector_dir / "faiss_indo.index"))
+embed_model = SentenceTransformer(indobert_model)
 
-faiss_tfidf_index = faiss.read_index(str(VECTOR_DIR / "faiss_tfidf.index"))
-
-indo_embeddings = np.load(VECTOR_DIR / "indo_embeddings.npy")
-faiss_indo_index = faiss.read_index(str(VECTOR_DIR / "faiss_indo.index"))
-embed_model = SentenceTransformer(INDOBERT_MODEL_NAME)
-
-with open(VECTOR_DIR / "docs.json", encoding="utf-8") as f:
-    DOCS = json.load(f)
+with open(vector_dir / "docs.json", encoding="utf-8") as f:
+    docs = json.load(f)
 
 app = FastAPI()
 
@@ -38,6 +35,27 @@ def test_intent(req: IntentRequest):
         "proba": proba
     }
 
+# baru
+# def test_intent(req: IntentRequest):
+#     label, score, proba = predict_intent_conf(req.message)
+#     threshold = 0.6
+#     if score >= threshold:
+#         effective_intent = label
+#         low_confidence = False
+#     else:
+#         effective_intent = "lainnya"
+#         low_confidence = True
+
+#     return {
+#         "message": req.message,
+#         "raw_intent": label,
+#         "effective_intent": effective_intent,
+#         "confidence": score,
+#         "threshold": threshold,
+#         "low_confidence": low_confidence,
+#         "proba": proba,
+#     }
+
 class ChatRequest(BaseModel):
     message: str
     top_k: int = 4
@@ -52,7 +70,7 @@ def retrieve_bm25(query: str, top_k: int):
 
     results = []
     for i in idxs:
-        doc = DOCS[int(i)]
+        doc = docs[int(i)]
         results.append(
             {
                 "text": doc["text"],
@@ -79,7 +97,7 @@ def retrieve_faiss(query: str, top_k: int):
 
     results = []
     for score, i in zip(scores, idxs):
-        doc = DOCS[int(i)]
+        doc = docs[int(i)]
         results.append(
             {
                 "text": doc["text"],
@@ -91,8 +109,7 @@ def retrieve_faiss(query: str, top_k: int):
     return results
 
 def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
-    # alpha = bobot BM25 (0.5 50% BM25, 50% IndoBERT)
-    # --- skor BM25 untuk semua dokumen ---
+
     tokens = query.lower().split()
     bm25_scores = bm25.get_scores(tokens)  # shape (n_docs,)
 
@@ -121,7 +138,7 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
 
     results = []
     for i in idxs:
-        doc = DOCS[int(i)]
+        doc = docs[int(i)]
         results.append(
             {
                 "text": doc["text"],
@@ -139,7 +156,7 @@ def health():
     return {
         "status": "ok",
         "vector_db": "bm25 + indoBERT+faiss",
-        "docs_count": len(DOCS),
+        "docs_count": len(docs),
     }
 
 @app.post("/test/retrieve")

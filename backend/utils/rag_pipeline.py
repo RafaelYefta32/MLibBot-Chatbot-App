@@ -3,7 +3,7 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-GROQ_API_KEY = os.getenv("groq_api")
+groq_api_key = os.getenv("groq_api")
 
 def build_prompt(question: str, contexts: list) -> str:
     context_texts = "\n\n".join(
@@ -28,7 +28,7 @@ Jika informasi tidak ada di konteks, jawab bahwa informasinya tidak tersedia.
     return prompt.strip()
 
 def call_groq(prompt: str, model: str = "llama-3.1-8b-instant") -> str:
-    if not GROQ_API_KEY:
+    if not groq_api_key:
         raise RuntimeError("APi nya woy belumd dibikin")
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -61,7 +61,7 @@ def call_groq(prompt: str, model: str = "llama-3.1-8b-instant") -> str:
     }
 
     headers = {
-        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Authorization": f"Bearer {groq_api_key}",
         "Content-Type": "application/json",
     }
 
