@@ -8,11 +8,18 @@ import { ChatSidebar } from "@/components/ChatSidebar";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+interface MessageMetadata {
+  source?: string;
+  intent?: string;
+  probability?: number;
+}
+
 interface Message {
   id: string;
   text: string;
   isBot: boolean;
   timestamp: string;
+  metadata?: MessageMetadata;
 }
 
 export default function Page() {
@@ -43,6 +50,11 @@ export default function Page() {
         text: `Thank you for your question: "${text}". I'm a demo interface, so I don't have actual AI capabilities yet, but in a real implementation, I would search our library database and provide you with personalized book recommendations based on your interests!`,
         isBot: true,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        metadata: {
+          source: "Library Knowledge Base",
+          intent: "book_recommendation",
+          probability: 0.92,
+        },
       };
       setMessages((prev) => [...prev, botMessage]);
       setIsTyping(false);
@@ -79,6 +91,7 @@ export default function Page() {
                     message={message.text}
                     isBot={message.isBot}
                     timestamp={message.timestamp}
+                    metadata={message.metadata}
                   />
                 ))}
 
