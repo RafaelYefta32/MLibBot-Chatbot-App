@@ -14,6 +14,6 @@ callnumber_pattern = re.compile(
 def extract_callnumber(text: str):
     return callnumber_pattern.findall(text)
 
-year_pattern = re.compile(r"\b(19|20)\d{2}\b")
+year_pattern = re.compile(r"\b(?:19|20)\d{2}\b")
 def extract_years(text: str):
     return year_pattern.findall(text)

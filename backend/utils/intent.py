@@ -26,37 +26,15 @@ def _preprocess_intent(text: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
-def predict_intent(text: str) -> str:
-    s = _preprocess_intent(text)
-    return intent_pipeline.predict([s])[0]
-
 def predict_intent_proba(text: str):
     s = _preprocess_intent(text)
     proba = intent_pipeline.predict_proba([s])[0]
     labels = intent_pipeline.classes_
-    return dict(zip(labels, proba))
+    return {lbl: float(p) for lbl, p in zip(labels, proba)}
 
-#  baru
-# def predict_intent_proba(text: str):
-#     s = _preprocess_intent(text)
-#     proba = intent_pipeline.predict_proba([s])[0]
-#     labels = intent_pipeline.classes_
-#     return dict(zip(labels, proba))
-
-# def predict_intent(text: str) -> str:
-#     s = _preprocess_intent(text)
-#     proba = intent_pipeline.predict_proba([s])[0]
-#     labels = intent_pipeline.classes_
-#     best_idx = int(proba.argmax())
-#     return labels[best_idx]
-
-# def predict_intent_conf(text: str):
-#     s = _preprocess_intent(text)
-#     proba = intent_pipeline.predict_proba([s])[0]
-#     labels = intent_pipeline.classes_
-#     best_idx = int(proba.argmax())
-#     best_label = labels[best_idx]
-#     best_score = float(proba[best_idx])
-#     proba_dict = dict(zip(labels, proba))
-
-#     return best_label, best_score, proba_dict
+def predict_intent_conf(text: str):
+    proba_dict = predict_intent_proba(text)
+    best_label = max(proba_dict, key=proba_dict.get)
+    best_score = float(proba_dict[best_label])
+    best_percent = round(best_score * 100, 1)
+    return best_label, best_score, best_percent, proba_dict

@@ -7,7 +7,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from utils.rag_pipeline import build_prompt, call_groq
-from utils.intent import predict_intent, predict_intent_proba #, predict_intent_conf
+from utils.intent import predict_intent_conf
+from utils.preprocess import clean_query, tokenize_bm25
 
 base = Path(__file__).resolve().parent
 vector_dir = base / "vectorstore"
@@ -25,37 +26,6 @@ app = FastAPI()
 class IntentRequest(BaseModel):
     message: str
 
-@app.post("/test/intent")
-def test_intent(req: IntentRequest):
-    label = predict_intent(req.message)
-    proba = predict_intent_proba(req.message)
-    return {
-        "message": req.message,
-        "intent": label,
-        "proba": proba
-    }
-
-# baru
-# def test_intent(req: IntentRequest):
-#     label, score, proba = predict_intent_conf(req.message)
-#     threshold = 0.6
-#     if score >= threshold:
-#         effective_intent = label
-#         low_confidence = False
-#     else:
-#         effective_intent = "lainnya"
-#         low_confidence = True
-
-#     return {
-#         "message": req.message,
-#         "raw_intent": label,
-#         "effective_intent": effective_intent,
-#         "confidence": score,
-#         "threshold": threshold,
-#         "low_confidence": low_confidence,
-#         "proba": proba,
-#     }
-
 class ChatRequest(BaseModel):
     message: str
     top_k: int = 4
@@ -63,30 +33,25 @@ class ChatRequest(BaseModel):
     method: str = "hybrid"
 
 def retrieve_bm25(query: str, top_k: int):
-    """Retrieval pakai BM25 (lexical)."""
-    tokens = query.lower().split()
+    tokens = tokenize_bm25(query)
     scores = bm25.get_scores(tokens)
     idxs = np.argsort(scores)[::-1][:top_k]
 
     results = []
     for i in idxs:
         doc = docs[int(i)]
-        results.append(
-            {
-                "text": doc["text"],
-                "source": doc["source"],
-                "source_id": doc["source_id"],
-                "score": float(scores[i]),
-            }
-        )
+        results.append({
+            "text": doc["text"],
+            "source": doc["source"],
+            "source_id": doc["source_id"],
+            "score": float(scores[i]),
+        })
     return results
 
 def retrieve_faiss(query: str, top_k: int):
-    """
-    Retrieval utama: IndoBERT + FAISS (semantic search).
-    """
+    q = clean_query(query)
     q_emb = embed_model.encode(
-        [query],
+        [q],
         convert_to_numpy=True,
         normalize_embeddings=True,
     ).astype(np.float32)
@@ -98,31 +63,30 @@ def retrieve_faiss(query: str, top_k: int):
     results = []
     for score, i in zip(scores, idxs):
         doc = docs[int(i)]
-        results.append(
-            {
-                "text": doc["text"],
-                "source": doc["source"],
-                "source_id": doc["source_id"],
-                "score": float(score),
-            }
-        )
+        results.append({
+            "text": doc["text"],
+            "source": doc["source"],
+            "source_id": doc["source_id"],
+            "score": float(score),
+        })
     return results
 
 def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
-
-    tokens = query.lower().split()
-    bm25_scores = bm25.get_scores(tokens)  # shape (n_docs,)
+    q = clean_query(query)       # buat embedding
+    tokens = tokenize_bm25(query)
+    bm25_scores = bm25.get_scores(tokens)
 
     q_emb = embed_model.encode(
-        [query],
+        [q],
         convert_to_numpy=True,
         normalize_embeddings=True,
-    ).astype(np.float32)[0]  # (dim,)
+    ).astype(np.float32)[0]
 
-    faiss_scores = indo_embeddings @ q_emb  # cosine similarity per dokumen
+    # cosine similarity karena embeddings sudah normalize
+    faiss_scores = indo_embeddings @ q_emb
 
     def norm(x):
-        x = np.array(x, dtype=np.float32)
+        x = np.asarray(x, dtype=np.float32)
         x_min = float(x.min())
         x_max = float(x.max())
         if x_max - x_min < 1e-9:
@@ -131,7 +95,6 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
 
     bm25_n = norm(bm25_scores)
     faiss_n = norm(faiss_scores)
-
     hybrid = alpha * bm25_n + (1.0 - alpha) * faiss_n
 
     idxs = np.argsort(hybrid)[::-1][:top_k]
@@ -139,17 +102,34 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
     results = []
     for i in idxs:
         doc = docs[int(i)]
-        results.append(
-            {
-                "text": doc["text"],
-                "source": doc["source"],
-                "source_id": doc["source_id"],
-                "score_bm25": float(bm25_scores[i]),
-                "score_faiss": float(faiss_scores[i]),
-                "score_hybrid": float(hybrid[i]),
-            }
-        )
+        results.append({
+            "text": doc["text"],
+            "source": doc["source"],
+            "source_id": doc["source_id"],
+            "score_bm25": float(bm25_scores[i]),
+            "score_faiss": float(faiss_scores[i]),
+            "score_hybrid": float(hybrid[i]),
+        })
     return results
+
+@app.get("/")
+def root():
+    return {
+        "message": "MLibBot API nih brow",
+        "docs": "/docs",
+        "health": "/health"
+    }
+
+@app.post("/test/intent")
+def test_intent(req: IntentRequest):
+    label, score, percent, proba = predict_intent_conf(req.message)
+    return {
+        "message": req.message,
+        "intent": label,
+        "confidence": score,          # 0-1
+        "confidence_percent": percent, # 0-100
+        "proba": proba
+    }
 
 @app.get("/health")
 def health():
@@ -182,19 +162,43 @@ def test_compare(req: ChatRequest):
         "hybrid": hybrid_hits,
     }
 
+@app.post("/test/prompt")
+def test_prompt(req: ChatRequest):
+    # ambil contexts sesuai method
+    if req.method == "bm25":
+        contexts = retrieve_bm25(req.message, req.top_k)
+    elif req.method == "faiss":
+        contexts = retrieve_faiss(req.message, req.top_k)
+    else:
+        contexts = retrieve_hybrid(req.message, req.top_k)
+
+    prompt = build_prompt(req.message, contexts)
+    return {"query": req.message, "method": req.method, "prompt": prompt, "contexts": contexts}
+
+
 @app.post("/chat")
 def chat(req: ChatRequest):
-    # minimal 8 konteks
-    effective_k = max(req.top_k, 8)
+    label, score, percent, proba = predict_intent_conf(req.message)
 
     if req.method == "bm25":
-        contexts = retrieve_bm25(req.message, effective_k)
+        contexts = retrieve_bm25(req.message, req.top_k)
     elif req.method == "faiss":
-        contexts = retrieve_faiss(req.message, effective_k)
+        contexts = retrieve_faiss(req.message, req.top_k)
     else:  # hybrid
-        contexts = retrieve_hybrid(req.message, effective_k)
+        contexts = retrieve_hybrid(req.message, req.top_k)
 
     prompt = build_prompt(req.message, contexts)
     answer = call_groq(prompt)
 
-    return {"answer": answer, "sources": contexts}
+    return {
+        "answer": answer,
+        "method": req.method,            
+        "top_k_requested": req.top_k,
+        "intent": {
+            "label": label,
+            "confidence": score,              # 0-1
+            "confidence_percent": percent,    # 0-100
+            "proba": proba
+        },
+        "sources": contexts
+    }
