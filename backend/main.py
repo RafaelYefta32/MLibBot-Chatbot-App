@@ -71,44 +71,58 @@ def retrieve_faiss(query: str, top_k: int):
         })
     return results
 
-def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5):
-    q = clean_query(query)       # buat embedding
+# # hybrid faiss search 
+def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 10, pool_min: int = 50):
+    pool = max(top_k * pool_mul, pool_min)
+
+    # BM25 scores untuk docs
     tokens = tokenize_bm25(query)
-    bm25_scores = bm25.get_scores(tokens)
+    bm25_scores_all = bm25.get_scores(tokens)  # panjang = len(docs)
+    bm25_top_idxs = np.argsort(bm25_scores_all)[::-1][:pool]
 
-    q_emb = embed_model.encode(
-        [q],
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    ).astype(np.float32)[0]
+    # FAISS search (semantic) untuk top pool
+    q = clean_query(query)
+    q_emb = embed_model.encode([q], convert_to_numpy=True, normalize_embeddings=True).astype(np.float32)
 
-    # cosine similarity karena embeddings sudah normalize
-    faiss_scores = indo_embeddings @ q_emb
+    faiss_scores, faiss_idxs = faiss_indo_index.search(q_emb, pool)
+    faiss_scores = faiss_scores[0]
+    faiss_idxs = faiss_idxs[0]
+    default_faiss = float(faiss_scores.min()) if len(faiss_scores) else 0.0
 
-    def norm(x):
-        x = np.asarray(x, dtype=np.float32)
-        x_min = float(x.min())
-        x_max = float(x.max())
+    # map: idx -> score
+    faiss_score_map = {int(i): float(s) for i, s in zip(faiss_idxs, faiss_scores) if int(i) >= 0}
+    # union kandidat
+    candidate_idxs = list(set(map(int, bm25_top_idxs)) | set(faiss_score_map.keys()))
+    # ambil skor untuk kandidat aja
+    bm25_cand = np.array([float(bm25_scores_all[i]) for i in candidate_idxs], dtype=np.float32)
+    faiss_cand = np.array([float(faiss_score_map.get(i, default_faiss)) for i in candidate_idxs], dtype=np.float32)
+    # normalisasi
+    def norm(x: np.ndarray) -> np.ndarray:
+        x_min = float(x.min()) if len(x) else 0.0
+        x_max = float(x.max()) if len(x) else 0.0
         if x_max - x_min < 1e-9:
             return np.zeros_like(x)
         return (x - x_min) / (x_max - x_min)
 
-    bm25_n = norm(bm25_scores)
-    faiss_n = norm(faiss_scores)
+    bm25_n = norm(bm25_cand)
+    faiss_n = norm(faiss_cand)
+
     hybrid = alpha * bm25_n + (1.0 - alpha) * faiss_n
 
-    idxs = np.argsort(hybrid)[::-1][:top_k]
+    # sort kandidat berdasarkan hybrid desc, ambil top_k
+    order = np.argsort(hybrid)[::-1][:top_k]
 
     results = []
-    for i in idxs:
-        doc = docs[int(i)]
+    for rank_pos in order:
+        i = candidate_idxs[int(rank_pos)]
+        doc = docs[i]
         results.append({
-            "text": doc["text"],
-            "source": doc["source"],
-            "source_id": doc["source_id"],
-            "score_bm25": float(bm25_scores[i]),
-            "score_faiss": float(faiss_scores[i]),
-            "score_hybrid": float(hybrid[i]),
+            "text": doc.get("text"),
+            "source": doc.get("source"),
+            "source_id": doc.get("source_id"),
+            "score_bm25": float(bm25_scores_all[i]),
+            "score_faiss": float(faiss_score_map.get(i, default_faiss)),
+            "score_hybrid": float(hybrid[int(rank_pos)]),
         })
     return results
 
@@ -120,6 +134,14 @@ def root():
         "health": "/health"
     }
 
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "vector_db": "bm25 + indoBERT+faiss",
+        "docs_count": len(docs),
+    }
+
 @app.post("/test/intent")
 def test_intent(req: IntentRequest):
     label, score, percent, proba = predict_intent_conf(req.message)
@@ -129,14 +151,6 @@ def test_intent(req: IntentRequest):
         "confidence": score,          # 0-1
         "confidence_percent": percent, # 0-100
         "proba": proba
-    }
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "vector_db": "bm25 + indoBERT+faiss",
-        "docs_count": len(docs),
     }
 
 @app.post("/test/retrieve")

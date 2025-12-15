@@ -5,10 +5,6 @@ from typing import List
 # buang karakter kontrol aneh
 re_ctrl = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 
-# buang URL & email
-re_url = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
-re_email = re.compile(r"\b[\w\.-]+@[\w\.-]+\.\w+\b", re.IGNORECASE)
-
 # samakan variasi unicode yang sering muncul di PDF
 map_punct = {
     "\u2018": "'", "\u2019": "'", "\u201A": "'",
@@ -31,7 +27,7 @@ def _replace_punct(text: str) -> str:
 
 def _fix_pdf_hyphenation(text: str) -> str:
     """
-    Perbaiki pemenggalan kata PDF:
+    Perbaiki pemenggalan kata:
     'perpu-\nstakaan' -> 'perpustakaan'
     """
     return re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", text)
@@ -50,10 +46,6 @@ def _cleanup_base(text: str) -> str:
 
     # buang kontrol
     text = re_ctrl.sub(" ", text)
-
-    # buang url/email
-    text = re_url.sub(" ", text)
-    text = re_email.sub(" ", text)
 
     # rapihin whitespace
     text = re.sub(r"[ \t]+", " ", text)
@@ -82,14 +74,49 @@ def clean_query(text: str) -> str:
 
     # normalisasi istilah umum
     replacements = {
-        "perpus": "perpustakaan",
-        "perpust": "perpustakaan",
-        "e-journal": "ejournal",
-        "e journal": "ejournal",
-        "e-book": "ebook",
-        "e book": "ebook",
-        "wa": "whatsapp",
+    # perpustakaan
+    "perpus": "perpustakaan",
+    "perpust": "perpustakaan",
+    "perpustakaan maranatha": "perpustakaan universitas kristen maranatha",
+    "ukm": "universitas kristen maranatha", 
+    "marnat": "Universitas Kristen Maranatha",
+    "e-journal": "ejournal",
+    "e journal": "ejournal",
+    "ejurnal": "ejournal",
+    "e-jurnal": "ejournal",
+    "e-resource": "eresource",
+    "e resource": "eresource",
+    "e-resources": "eresource",
+    "e-book": "ebook",
+    "e book": "ebook",
+    "ebook": "ebook",
+    "e-books": "ebook",
+    "ta": "tugas akhir",
+    "t.a": "tugas akhir",
+    "skripsi": "skripsi",
+    "thesis": "tesis",
+    "booking": "pemesanan",
+    "reservasi": "pemesanan",
+    "reserve": "pemesanan",
+    "pinjem": "pinjam",
+    "minjem": "pinjam",
+    "ngembaliin": "mengembalikan",
+    "balikin": "mengembalikan",
+    "perpanjang": "perpanjangan",
+    "renew": "perpanjangan",
+    "extend": "perpanjangan",
+    "wa": "whatsapp",
+    "w/a": "whatsapp",
+    "whats app": "whatsapp",
+    "ig": "instagram",
+    "insta": "instagram",
+    "telp": "telepon",
+    "no hp": "nomor hp",
+    "hp": "handphone",
+    "telat": "terlambat",
+    "denda": "denda",
     }
+
     for k, v in replacements.items():
         t = re.sub(rf"\b{re.escape(k)}\b", v, t)
 
