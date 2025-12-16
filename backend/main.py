@@ -4,6 +4,7 @@ import faiss
 import numpy as np
 import joblib
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from utils.rag_pipeline import build_prompt, call_groq
@@ -22,6 +23,19 @@ with open(vector_dir / "docs.json", encoding="utf-8") as f:
     docs = json.load(f)
 
 app = FastAPI()
+
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class IntentRequest(BaseModel):
     message: str

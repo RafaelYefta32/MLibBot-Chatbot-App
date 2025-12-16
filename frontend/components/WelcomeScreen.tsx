@@ -16,7 +16,7 @@ const suggestedQuestions = [
   {
     icon: Library,
     text: "Jam Buka Perpustakaan",
-    question: "Jam Operasional Perpustakaan",
+    question: "Jam Layanan Perpustakaan",
   },
   {
     icon: BookOpen,
@@ -67,7 +67,7 @@ export const WelcomeScreen = ({ onSuggestedQuestion }: WelcomeScreenProps) => {
             transition={{ delay: 0.3 }}
             className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent"
           >
-            Welcome to Maranatha Library Bot
+            Welcome to Maranatha Library ChatBot
           </motion.h1>
           <motion.p
             initial={{ opacity: 0 }}

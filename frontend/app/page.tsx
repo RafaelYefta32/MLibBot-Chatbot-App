@@ -12,6 +12,7 @@ interface MessageMetadata {
   source?: string;
   intent?: string;
   probability?: number;
+  score?: number;
 }
 
 interface Message {
@@ -27,13 +28,13 @@ export default function Page() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
 
-  // const conversations = [
-  //   { id: "1", title: "Mystery Novel Recommendations", timestamp: "2 hours ago" },
-  //   { id: "2", title: "Science Fiction Classics", timestamp: "Yesterday" },
-  //   { id: "3", title: "Best Fantasy Series", timestamp: "3 days ago" },
-  // ];
+  const conversations = [
+    { id: "1", title: "Mystery Novel Recommendations", timestamp: "2 hours ago" },
+    { id: "2", title: "Science Fiction Classics", timestamp: "Yesterday" },
+    { id: "3", title: "Best Fantasy Series", timestamp: "3 days ago" },
+  ];
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = async (text: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
       text,
@@ -44,39 +45,72 @@ export default function Page() {
     setMessages((prev) => [...prev, userMessage]);
     setIsTyping(true);
 
-    setTimeout(() => {
+    try {
+      const apiUrl = "http://localhost:8000/chat"; 
+      
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+            message: text,
+            top_k: 4,       
+            method: "hybrid"
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to get response from server");
+      }
+
+      const data = await response.json();
+
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: `Thank you for your question: "${text}". I'm a demo interface, so I don't have actual AI capabilities yet, but in a real implementation, I would search our library database and provide you with personalized book recommendations based on your interests!`,
+        text: data.answer || "No response received",
         isBot: true,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         metadata: {
-          source: "Library Knowledge Base",
-          intent: "book_recommendation",
-          probability: 0.92,
+          
+          source: data.sources[0].source, 
+          
+          intent: data.intent?.label, 
+          probability: data.intent?.confidence_percent,
+          score: data.sources[0].score_hybrid,
         },
       };
       setMessages((prev) => [...prev, botMessage]);
+    } catch (error) {
+      console.error("Error fetching chat response:", error);
+       const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: "Maaf, terjadi kesalahan saat menghubungi server. Silakan coba lagi.",
+        isBot: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
-  // const handleNewConversation = () => {
-  //   setMessages([]);
-  //   setIsSidebarOpen(false);
-  // };
+  const handleNewConversation = () => {
+    setMessages([]);
+    setIsSidebarOpen(false);
+  };
 
   return (
     <div className="flex h-screen w-full bg-gradient-to-br from-background via-background to-accent/5">
-      {/* <ChatSidebar
+      <ChatSidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         conversations={conversations}
         onSelectConversation={(id) => console.log("Selected:", id)}
         onNewConversation={handleNewConversation}
-      /> */}
+      />
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden transition-all duration-300 ease-in-out">
         <ChatHeader onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
 
         <ScrollArea className="flex-1">

@@ -15,7 +15,7 @@ data = base / "data"
 vector_dir = base / "vectorstore"
 vector_dir.mkdir(exist_ok=True)
 
-catalog = data / "hasil_catalog_v2.xlsx"
+catalog = data / "hasil_catalog_v4_blank_generated.xlsx"
 pdf_path = data / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
 
 indobert_model = "LazarusNLP/all-indobert-base-v4"
@@ -61,7 +61,6 @@ def load_docs():
             "source": "catalog",
             "doc_kind": "catalog_meta",
             "source_id": parent_id,
-
             "parent_id": parent_id,
             "title": title,
             "authors": authors,
@@ -77,40 +76,38 @@ def load_docs():
         })
 
         # doc sinopsis di-chunk (1 buku bisa banyak doc)
-        # skip kalau sinopsis kosong
-        if synopsis and synopsis.upper() != "SINOPSIS_TIDAK_DITEMUKAN":
-            syn_clean = clean_text(synopsis)
-            syn_chunks = chunk_text(syn_clean, chunk_size=200, overlap=50)
+        syn_clean = clean_text(synopsis)
+        syn_chunks = chunk_text(syn_clean, chunk_size=200, overlap=50)
 
-            for si, ch in enumerate(syn_chunks):
-                syn_text = clean_text(
-                    f"Judul: {title}\n"
-                    f"Penulis: {authors}\n"
-                    f"Tahun: {year}\n"
-                    f"ISBN: {isbn}\n"
-                    f"Lokasi: {location}\n"
-                    f"Status: {availability}\n"
-                    f"Kata kunci: {keyword}\n"
-                    f"Sinopsis: {ch}\n"
-                )
-                docs.append({
-                    "text": syn_text,
-                    "source": "catalog",
-                    "doc_kind": "catalog_synopsis",
-                    "source_id": f"{parent_id}_s{si}",
+        for si, ch in enumerate(syn_chunks):
+            syn_text = clean_text(
+                f"Judul: {title}\n"
+                f"Penulis: {authors}\n"
+                f"Tahun: {year}\n"
+                f"ISBN: {isbn}\n"
+                f"Lokasi: {location}\n"
+                f"Status: {availability}\n"
+                f"Kata kunci: {keyword}\n"
+                f"Sinopsis: {ch}\n"
+            )
+            docs.append({
+                "text": syn_text,
+                "source": "catalog",
+                "doc_kind": "catalog_synopsis",
+                "source_id": f"{parent_id}_s{si}",
 
-                    # link ke parent
-                    "parent_id": parent_id,
-                    "title": title,
-                    "authors": authors,
-                    "year": year,
-                    "isbn": isbn,
-                    "location": location,
-                    "availability": availability,
-                    "detail_url": detail_url,
-                    "thumbnail_url": thumbnail_url,
-                    "keyword": keyword,
-                })
+                # link ke parent
+                "parent_id": parent_id,
+                "title": title,
+                "authors": authors,
+                "year": year,
+                "isbn": isbn,
+                "location": location,
+                "availability": availability,
+                "detail_url": detail_url,
+                "thumbnail_url": thumbnail_url,
+                "keyword": keyword,
+            })
 
     # 2) PDF operasional
     with pdfplumber.open(pdf_path) as pdf_obj:
