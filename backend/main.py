@@ -46,6 +46,31 @@ class ChatRequest(BaseModel):
     # "bm25", "faiss', "hybrid"
     method: str = "hybrid"
 
+def _dedupe_key(hit: dict) -> str:
+    if hit.get("source") == "catalog":
+        # satu buku = satu parent_id
+        if hit.get("parent_id"):
+            return str(hit["parent_id"])
+        # fallback kalau parent_id kosong: potong _s0/_s1
+        return str(hit.get("source_id", "")).split("_s")[0]
+
+    # pdf: per chunk unik
+    return f'{hit.get("source")}::{hit.get("source_id")}'
+
+def dedupe(hits: list, top_k: int) -> list:
+    seen = set()
+    out = []
+    for h in hits:
+        key = _dedupe_key(h)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(h)
+        if len(out) >= top_k:
+            break
+    return out
+
+
 def retrieve_bm25(query: str, top_k: int):
     tokens = tokenize_bm25(query)
     scores = bm25.get_scores(tokens)
@@ -60,7 +85,8 @@ def retrieve_bm25(query: str, top_k: int):
             "source_id": doc["source_id"],
             "score": float(scores[i]),
         })
-    return results
+    # return results
+    return dedupe(results, top_k)
 
 def retrieve_faiss(query: str, top_k: int):
     q = clean_query(query)
@@ -83,10 +109,11 @@ def retrieve_faiss(query: str, top_k: int):
             "source_id": doc["source_id"],
             "score": float(score),
         })
-    return results
+    # return results
+    return dedupe(results, top_k)
 
 # # hybrid faiss search 
-def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 10, pool_min: int = 50):
+def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 10, pool_min: int = 40):
     pool = max(top_k * pool_mul, pool_min)
 
     # BM25 scores untuk docs
@@ -138,7 +165,8 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 
             "score_faiss": float(faiss_score_map.get(i, default_faiss)),
             "score_hybrid": float(hybrid[int(rank_pos)]),
         })
-    return results
+    # return results
+    return dedupe(results, top_k)
 
 @app.get("/")
 def root():
