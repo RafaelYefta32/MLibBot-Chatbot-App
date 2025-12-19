@@ -15,7 +15,7 @@ data = base / "data"
 vector_dir = base / "vectorstore"
 vector_dir.mkdir(exist_ok=True)
 
-catalog = data / "hasil_catalog_v4_blank_generated.xlsx"
+catalog = data / "hasil_catalog_v5_indonesia.xlsx"
 pdf_path = data / "data_operasional_mlibbot_perpustakaan_maranatha_v1.pdf"
 
 indobert_model = "LazarusNLP/all-indobert-base-v4"

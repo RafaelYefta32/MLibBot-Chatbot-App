@@ -51,7 +51,7 @@ def _dedupe_key(hit: dict) -> str:
         # satu buku = satu parent_id
         if hit.get("parent_id"):
             return str(hit["parent_id"])
-        # fallback kalau parent_id kosong: potong _s0/_s1
+        # fallback kalau parent_id kosong: potong s0/s1
         return str(hit.get("source_id", "")).split("_s")[0]
 
     # pdf: per chunk unik
@@ -70,11 +70,12 @@ def dedupe(hits: list, top_k: int) -> list:
             break
     return out
 
-
 def retrieve_bm25(query: str, top_k: int):
+    pool = 16
+
     tokens = tokenize_bm25(query)
     scores = bm25.get_scores(tokens)
-    idxs = np.argsort(scores)[::-1][:top_k]
+    idxs = np.argsort(scores)[::-1][:pool]  
 
     results = []
     for i in idxs:
@@ -83,34 +84,37 @@ def retrieve_bm25(query: str, top_k: int):
             "text": doc["text"],
             "source": doc["source"],
             "source_id": doc["source_id"],
+            "parent_id": doc.get("parent_id"), 
             "score": float(scores[i]),
         })
-    # return results
+
     return dedupe(results, top_k)
 
 def retrieve_faiss(query: str, top_k: int):
-    q = clean_query(query)
-    q_emb = embed_model.encode(
-        [q],
-        convert_to_numpy=True,
-        normalize_embeddings=True,
-    ).astype(np.float32)
+    pool = 16
 
-    scores, idxs = faiss_indo_index.search(q_emb, top_k)
+    q = clean_query(query)
+    q_emb = embed_model.encode([q], convert_to_numpy=True, normalize_embeddings=True).astype(np.float32)
+
+    scores, idxs = faiss_indo_index.search(q_emb, pool) 
     scores = scores[0]
     idxs = idxs[0]
 
     results = []
     for score, i in zip(scores, idxs):
+        if int(i) < 0:
+            continue
         doc = docs[int(i)]
         results.append({
             "text": doc["text"],
             "source": doc["source"],
             "source_id": doc["source_id"],
+            "parent_id": doc.get("parent_id"), 
             "score": float(score),
         })
-    # return results
+
     return dedupe(results, top_k)
+
 
 # # hybrid faiss search 
 def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 10, pool_min: int = 40):
@@ -118,7 +122,7 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 
 
     # BM25 scores untuk docs
     tokens = tokenize_bm25(query)
-    bm25_scores_all = bm25.get_scores(tokens)  # panjang = len(docs)
+    bm25_scores_all = bm25.get_scores(tokens) 
     bm25_top_idxs = np.argsort(bm25_scores_all)[::-1][:pool]
 
     # FAISS search (semantic) untuk top pool
@@ -130,7 +134,7 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 
     faiss_idxs = faiss_idxs[0]
     default_faiss = float(faiss_scores.min()) if len(faiss_scores) else 0.0
 
-    # map: idx -> score
+    # map: idx - score
     faiss_score_map = {int(i): float(s) for i, s in zip(faiss_idxs, faiss_scores) if int(i) >= 0}
     # union kandidat
     candidate_idxs = list(set(map(int, bm25_top_idxs)) | set(faiss_score_map.keys()))
@@ -150,8 +154,7 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 
 
     hybrid = alpha * bm25_n + (1.0 - alpha) * faiss_n
 
-    # sort kandidat berdasarkan hybrid desc, ambil top_k
-    order = np.argsort(hybrid)[::-1][:top_k]
+    order = np.argsort(hybrid)[::-1]
 
     results = []
     for rank_pos in order:
@@ -161,11 +164,11 @@ def retrieve_hybrid(query: str, top_k: int, alpha: float = 0.5, pool_mul: int = 
             "text": doc.get("text"),
             "source": doc.get("source"),
             "source_id": doc.get("source_id"),
+            "parent_id": doc.get("parent_id"),
             "score_bm25": float(bm25_scores_all[i]),
             "score_faiss": float(faiss_score_map.get(i, default_faiss)),
             "score_hybrid": float(hybrid[int(rank_pos)]),
         })
-    # return results
     return dedupe(results, top_k)
 
 @app.get("/")
@@ -208,7 +211,7 @@ def test_retrieve(req: ChatRequest):
 @app.post("/test/compare")
 def test_compare(req: ChatRequest):
     bm25_hits = retrieve_bm25(req.message, req.top_k)
-    faiss_hits = retrieve_faiss(req.message, req.top_k)      # IndoBERT
+    faiss_hits = retrieve_faiss(req.message, req.top_k)
     hybrid_hits = retrieve_hybrid(req.message, req.top_k)
 
     return {
@@ -227,10 +230,8 @@ def test_prompt(req: ChatRequest):
         contexts = retrieve_faiss(req.message, req.top_k)
     else:
         contexts = retrieve_hybrid(req.message, req.top_k)
-
     prompt = build_prompt(req.message, contexts)
     return {"query": req.message, "method": req.method, "prompt": prompt, "contexts": contexts}
-
 
 @app.post("/chat")
 def chat(req: ChatRequest):
