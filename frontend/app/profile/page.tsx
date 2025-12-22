@@ -17,66 +17,93 @@ const Profile = () => {
 
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [email, setEmail] = useState(user?.email || "");
-  
+
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  
   const [showPasswords, setShowPasswords] = useState(false);
+  const [showNewPasswords, setShowNewPasswords] = useState(false);
+  const [showConfPasswords, setShowConfPasswords] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Effect untuk redirect jika user belum login
-  // useEffect(() => {
-  //   if (!user) {
-  //     router.push("/login");
-  //   }
-  // }, [user, router]);
+  useEffect(() => {
+    if (user) {
+      setFullName(user.fullName);
+      setEmail(user.email);
+    } else {
+      // router.push("/login");
+    }
+  }, [user]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+
     if (!fullName || !email) {
       toast({
         title: "Error",
         description: "Please fill in all fields",
         variant: "destructive",
       });
+      setIsLoading(false);
       return;
     }
-    
+
     try {
       await updateProfile(fullName, email);
       toast({
         title: "Success",
         description: "Profile updated successfully",
       });
-    } catch (error) {
+    } catch (error: Error | unknown) {
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: error instanceof Error ? error.message : "Failed to update profile",
         variant: "destructive",
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
+
     if (!currentPassword || !newPassword || !confirmNewPassword) {
       toast({
         title: "Error",
         description: "Please fill in all password fields",
         variant: "destructive",
       });
+      setIsLoading(false);
       return;
     }
+
     if (newPassword !== confirmNewPassword) {
       toast({
         title: "Error",
         description: "New passwords do not match",
         variant: "destructive",
       });
+      setIsLoading(false);
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toast({
+        title: "Error",
+        description: "New password cannot be the same as the current password",
+        variant: "destructive",
+      });
+      setIsLoading(false);
       return;
     }
 
     try {
       const success = await updatePassword(currentPassword, newPassword);
+      
       if (success) {
         toast({
           title: "Success",
@@ -86,14 +113,21 @@ const Profile = () => {
         setNewPassword("");
         setConfirmNewPassword("");
       }
-    } catch (error) {
-      // Error handling biasanya sudah dicover di dalam updatePassword atau auth context, 
+    } catch (error: Error | unknown) {
+      // 5. Menangkap Error dari Backend (Misal: "Incorrect current password")
+      toast({
+        title: "Update Failed",
+        description: error instanceof Error ? error.message : "Failed to verify current password",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // if (!user) {
-  //   return null; 
-  // }
+  if (!user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -112,53 +146,55 @@ const Profile = () => {
       </header>
 
       <main className="container max-w-2xl py-8 px-4">
+        {/* Form Profile */}
         <form onSubmit={handleUpdateProfile} className="space-y-4 bg-card p-6 rounded-lg border border-border">
           <h2 className="text-xl font-semibold">Personal Information</h2>
-          
+
           <div className="space-y-2">
             <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
+            <Input 
+              id="fullName" 
+              type="text" 
+              value={fullName} 
+              onChange={(e) => setFullName(e.target.value)} 
+              disabled={isLoading}
             />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+            <Input 
+              id="email" 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              disabled={isLoading}
             />
           </div>
 
-          <Button type="submit">Save Changes</Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Saving..." : "Save Changes"}
+          </Button>
         </form>
 
         <Separator className="my-8" />
 
+        {/* Form Password */}
         <form onSubmit={handleUpdatePassword} className="space-y-4 bg-card p-6 rounded-lg border border-border">
           <h2 className="text-xl font-semibold">Change Password</h2>
-          
+
           <div className="space-y-2">
             <Label htmlFor="currentPassword">Current Password</Label>
             <div className="relative">
-              <Input
-                id="currentPassword"
-                type={showPasswords ? "text" : "password"}
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
+              <Input 
+                id="currentPassword" 
+                type={showPasswords ? "text" : "password"} 
+                value={currentPassword} 
+                onChange={(e) => setCurrentPassword(e.target.value)} 
+                placeholder="Enter current password"
+                disabled={isLoading}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowPasswords(!showPasswords)}
-              >
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPasswords(!showPasswords)}>
                 {showPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
@@ -166,25 +202,41 @@ const Profile = () => {
 
           <div className="space-y-2">
             <Label htmlFor="newPassword">New Password</Label>
-            <Input
-              id="newPassword"
-              type={showPasswords ? "text" : "password"}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Input 
+                id="newPassword" 
+                type={showNewPasswords ? "text" : "password"} 
+                value={newPassword} 
+                onChange={(e) => setNewPassword(e.target.value)} 
+                placeholder="Enter new password"
+                disabled={isLoading}
+              />
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowNewPasswords(!showNewPasswords)}>
+                {showNewPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="confirmNewPassword">Confirm New Password</Label>
-            <Input
-              id="confirmNewPassword"
-              type={showPasswords ? "text" : "password"}
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Input 
+                id="confirmNewPassword" 
+                type={showConfPasswords ? "text" : "password"} 
+                value={confirmNewPassword} 
+                onChange={(e) => setConfirmNewPassword(e.target.value)} 
+                placeholder="Confirm new password"
+                disabled={isLoading}
+              />
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowConfPasswords(!showConfPasswords)}>
+                {showConfPasswords ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
-          <Button type="submit">Update Password</Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Updating..." : "Update Password"}
+          </Button>
         </form>
       </main>
     </div>

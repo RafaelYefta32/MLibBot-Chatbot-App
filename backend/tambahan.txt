@@ -7,6 +7,8 @@ conda activate mlibbot2
 5. pip install -r requirements.txt
 6. conda install -n mlibbot2 -c pytorch faiss-cpu -y
 7. pip install torch --index-url https://download.pytorch.org/whl/cpu
+8. pip install motor passlib[bcrypt] python-jose python-multipart 'pydantic[email]' 'bcrypt==4.0.1'
+9. jgn lupa buat file .env nya (liat .env.example)
 
 
 // run 

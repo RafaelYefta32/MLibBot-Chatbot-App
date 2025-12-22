@@ -16,6 +16,7 @@ const Register = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfPassword, setShowConfPassword] = useState(false);
 
   const { register } = useAuth();
   const router = useRouter();
@@ -26,7 +27,7 @@ const Register = () => {
 
     if (!fullName || !email || !password || !confirmPassword) {
       toast({
-        title: "Error",
+        title: "Register Failed",
         description: "Please fill in all fields",
         variant: "destructive",
       });
@@ -35,7 +36,7 @@ const Register = () => {
 
     if (password !== confirmPassword) {
       toast({
-        title: "Error",
+        title: "Register Failed",
         description: "Passwords do not match",
         variant: "destructive",
       });
@@ -50,11 +51,11 @@ const Register = () => {
         description: "Account created successfully",
       });
 
-      router.push("/"); // Redirect ke home
+      router.push("/");
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to create account. Please try again.",
+        title: "Register Failed",
+        description: "Email Already Registered, Use Another Email.",
         variant: "destructive",
       });
     }
@@ -74,43 +75,19 @@ const Register = () => {
         <form onSubmit={handleSubmit} className="space-y-4 bg-card p-6 rounded-lg border border-border">
           <div className="space-y-2">
             <Label htmlFor="fullName">Full Name</Label>
-            <Input
-              id="fullName"
-              type="text"
-              placeholder="John Doe"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-            />
+            <Input id="fullName" type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
+            <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
             <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowPassword(!showPassword)}
-              >
+              <Input id="password" type={showPassword ? "text" : "password"} placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowPassword(!showPassword)}>
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
@@ -118,13 +95,12 @@ const Register = () => {
 
           <div className="space-y-2">
             <Label htmlFor="confirmPassword">Confirm Password</Label>
-            <Input
-              id="confirmPassword"
-              type={showPassword ? "text" : "password"}
-              placeholder="••••••••"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
+            <div className="relative">
+              <Input id="confirmPassword" type={showConfPassword ? "text" : "password"} placeholder="••••••••" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+              <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0 h-full px-3" onClick={() => setShowConfPassword(!showConfPassword)}>
+                {showConfPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
 
           <Button type="submit" className="w-full">

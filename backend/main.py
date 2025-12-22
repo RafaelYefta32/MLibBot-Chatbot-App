@@ -1,15 +1,39 @@
+import os
+from dotenv import load_dotenv
 import json
 from pathlib import Path
+from datetime import datetime, timedelta
+from typing import Optional
+from bson import ObjectId
+
 import faiss 
 import numpy as np
 import joblib
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
+
+from fastapi import FastAPI, HTTPException, status, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
+from pydantic import BaseModel, Field, EmailStr
+from motor.motor_asyncio import AsyncIOMotorClient
+from passlib.context import CryptContext
+from jose import JWTError, jwt
+
 from utils.rag_pipeline import build_prompt, call_groq
 from utils.intent import predict_intent_conf
 from utils.preprocess import clean_query, tokenize_bm25
+
+load_dotenv()
+
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+DB_NAME = os.getenv("DB_NAME", "mlibbot_db")
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+if not SECRET_KEY:
+    raise ValueError("No SECRET_KEY set for application")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 base = Path(__file__).resolve().parent
 vector_dir = base / "vectorstore"
@@ -24,6 +48,12 @@ with open(vector_dir / "docs.json", encoding="utf-8") as f:
 
 app = FastAPI()
 
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
+users_collection = db["users"]
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
@@ -37,6 +67,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+class UserRegister(BaseModel):
+    fullName: str
+    email: EmailStr
+    password: str
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class UserResponse(BaseModel):
+    id: str
+    fullName: str
+    email: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user: UserResponse
+
+class UserUpdate(BaseModel):
+    fullName: str
+    email: EmailStr
+
+class PasswordUpdate(BaseModel):
+    current_password: str
+    new_password: str
+
 class IntentRequest(BaseModel):
     message: str
 
@@ -45,6 +102,147 @@ class ChatRequest(BaseModel):
     top_k: int = 4
     # "bm25", "faiss', "hybrid"
     method: str = "hybrid"
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+
+async def get_current_user_id(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            return None
+    except JWTError:
+        return None
+    
+    user = await users_collection.find_one({"email": email})
+    return str(user["_id"]) if user else None
+
+@app.post("/auth/register", response_model=UserResponse)
+async def register(user: UserRegister):
+    existing_user = await users_collection.find_one({"email": user.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed_password = get_password_hash(user.password)
+    
+    new_user = {
+        "fullName": user.fullName,
+        "email": user.email,
+        "password": hashed_password,
+        "created_at": datetime.utcnow()
+    }
+    result = await users_collection.insert_one(new_user)
+    
+    return {
+        "id": str(result.inserted_id),
+        "fullName": new_user["fullName"],
+        "email": new_user["email"]
+    }
+
+@app.post("/auth/login", response_model=Token)
+async def login(user: UserLogin):
+    db_user = await users_collection.find_one({"email": user.email})
+    if not db_user:
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+    
+    if not verify_password(user.password, db_user["password"]):
+        raise HTTPException(status_code=400, detail="Invalid email or password")
+    
+    access_token = create_access_token(data={"sub": db_user["email"]})
+    
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "user": {
+            "id": str(db_user["_id"]),
+            "fullName": db_user["fullName"],
+            "email": db_user["email"]
+        }
+    }
+
+@app.put("/auth/profile", response_model=UserResponse)
+async def update_profile(
+    user_data: UserUpdate, 
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    existing_user = await users_collection.find_one({
+        "email": user_data.email, 
+        "_id": {"$ne": ObjectId(user_id)} 
+    })
+    
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already in use by another account")
+
+    await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"fullName": user_data.fullName, "email": user_data.email}}
+    )
+
+    return {
+        "id": user_id,
+        "fullName": user_data.fullName,
+        "email": user_data.email
+    }
+
+@app.put("/auth/password")
+async def update_password(
+    pwd_data: PasswordUpdate, 
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    user_db = await users_collection.find_one({"_id": ObjectId(user_id)})
+    if not user_db:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not verify_password(pwd_data.current_password, user_db["password"]):
+        raise HTTPException(status_code=400, detail="Incorrect current password")
+
+    new_hashed_password = get_password_hash(pwd_data.new_password)
+    
+    await users_collection.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"password": new_hashed_password}}
+    )
+
+    return {"message": "Password updated successfully"}
+
+@app.get("/auth/me", response_model=UserResponse)
+async def get_current_user(token: str):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        email: str = payload.get("sub")
+        if email is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    user = await users_collection.find_one({"email": email})
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found")
+        
+    return {
+        "id": str(user["_id"]),
+        "fullName": user["fullName"],
+        "email": user["email"]
+    }
 
 def _dedupe_key(hit: dict) -> str:
     if hit.get("source") == "catalog":

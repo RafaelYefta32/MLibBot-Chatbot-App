@@ -44,8 +44,8 @@ const Login = () => {
     } catch (error) {
       // Error handling jika login gagal
       toast({
-        title: "Error",
-        description: "Failed to login",
+        title: "Failed to login",
+        description: "Invalid Email or Password",
         variant: "destructive",
       });
     }
