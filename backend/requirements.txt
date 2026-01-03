@@ -1,9 +1,31 @@
+# --- Framework & Server ---
 fastapi
 uvicorn[standard]
-rank-bm25
-pdfplumber
 python-dotenv
 requests
-joblib
+python-multipart
+
+# --- Database ---
+pymongo
+motor
+
+# --- Keamanan & Validasi ---
+passlib[bcrypt]
+python-jose[cryptography]
+pydantic[email]
+email-validator
+
+# --- Data Processing & File ---
+pandas
 openpyxl
+pdfplumber
+joblib
+numpy
+
+# --- AI / Machine Learning / Search ---
 sentence-transformers
+rank-bm25
+scikit-learn
+faiss-cpu
+langchain
+langchain-community
