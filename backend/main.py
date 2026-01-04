@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import json
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from bson import ObjectId
 
 import faiss 
@@ -51,6 +51,7 @@ app = FastAPI()
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 users_collection = db["users"]
+chat_sessions_collection = db["chat_sessions"]
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -99,9 +100,32 @@ class IntentRequest(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str
+    session_id: Optional[str] = None
     top_k: int = 4
     # "bm25", "faiss', "hybrid"
     method: str = "hybrid"
+
+class ChatMessageModel(BaseModel):
+    role: str
+    content: str
+    timestamp: datetime
+
+class CreateSessionRequest(BaseModel):
+    title: Optional[str] = None
+
+class SessionResponse(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    message_count: int
+
+class SessionDetailResponse(BaseModel):
+    id: str
+    title: str
+    messages: List[dict]
+    created_at: datetime
+    updated_at: datetime
 
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
@@ -243,6 +267,114 @@ async def get_current_user(token: str):
         "fullName": user["fullName"],
         "email": user["email"]
     }
+
+@app.post("/chat/sessions", response_model=SessionResponse)
+async def create_chat_session(
+    req: CreateSessionRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    now = datetime.utcnow()
+    new_session = {
+        "user_id": user_id,
+        "title": req.title or "Percakapan Baru",
+        "messages": [],
+        "created_at": now,
+        "updated_at": now
+    }
+    
+    result = await chat_sessions_collection.insert_one(new_session)
+    
+    return {
+        "id": str(result.inserted_id),
+        "title": new_session["title"],
+        "created_at": new_session["created_at"],
+        "updated_at": new_session["updated_at"],
+        "message_count": 0
+    }
+
+@app.get("/chat/sessions", response_model=List[SessionResponse])
+async def list_chat_sessions(user_id: str = Depends(get_current_user_id)):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    sessions = await chat_sessions_collection.find(
+        {"user_id": user_id}
+    ).sort("updated_at", -1).to_list(100)
+    
+    return [
+        {
+            "id": str(s["_id"]),
+            "title": s["title"],
+            "created_at": s["created_at"],
+            "updated_at": s["updated_at"],
+            "message_count": len(s.get("messages", []))
+        }
+        for s in sessions
+    ]
+
+@app.get("/chat/sessions/{session_id}", response_model=SessionDetailResponse)
+async def get_chat_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    session = await chat_sessions_collection.find_one({
+        "_id": ObjectId(session_id),
+        "user_id": user_id
+    })
+    
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {
+        "id": str(session["_id"]),
+        "title": session["title"],
+        "messages": session.get("messages", []),
+        "created_at": session["created_at"],
+        "updated_at": session["updated_at"]
+    }
+
+@app.delete("/chat/sessions/{session_id}")
+async def delete_chat_session(
+    session_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    result = await chat_sessions_collection.delete_one({
+        "_id": ObjectId(session_id),
+        "user_id": user_id
+    })
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"message": "Session deleted successfully"}
+
+@app.put("/chat/sessions/{session_id}/title")
+async def update_session_title(
+    session_id: str,
+    req: CreateSessionRequest,
+    user_id: str = Depends(get_current_user_id)
+):
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    result = await chat_sessions_collection.update_one(
+        {"_id": ObjectId(session_id), "user_id": user_id},
+        {"$set": {"title": req.title, "updated_at": datetime.utcnow()}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"message": "Title updated successfully"}
 
 def _dedupe_key(hit: dict) -> str:
     if hit.get("source") == "catalog":
@@ -432,7 +564,7 @@ def test_prompt(req: ChatRequest):
     return {"query": req.message, "method": req.method, "prompt": prompt, "contexts": contexts}
 
 @app.post("/chat")
-def chat(req: ChatRequest):
+async def chat(req: ChatRequest):
     label, score, percent, proba = predict_intent_conf(req.message)
 
     if req.method == "bm25":
@@ -444,6 +576,34 @@ def chat(req: ChatRequest):
 
     prompt = build_prompt(req.message, contexts)
     answer = call_groq(prompt)
+
+    if req.session_id:
+        now = datetime.utcnow()
+        user_msg = {
+            "role": "user",
+            "content": req.message,
+            "timestamp": now.isoformat()
+        }
+        bot_msg = {
+            "role": "bot",
+            "content": answer,
+            "timestamp": now.isoformat()
+        }
+        
+        session = await chat_sessions_collection.find_one({"_id": ObjectId(req.session_id)})
+        update_data = {
+            "$push": {"messages": {"$each": [user_msg, bot_msg]}},
+            "$set": {"updated_at": now}
+        }
+        
+        if session and session.get("title") == "Percakapan Baru" and len(session.get("messages", [])) == 0:
+            auto_title = req.message[:30] + ("..." if len(req.message) > 30 else "")
+            update_data["$set"]["title"] = auto_title
+        
+        await chat_sessions_collection.update_one(
+            {"_id": ObjectId(req.session_id)},
+            update_data
+        )
 
     return {
         "answer": answer,

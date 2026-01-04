@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ChatHeader } from "@/components/ChatHeader";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatSidebar } from "@/components/ChatSidebar";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+const API_URL = "http://localhost:8000";
 
 interface MessageMetadata {
   source?: string;
@@ -23,16 +25,99 @@ interface Message {
   metadata?: MessageMetadata;
 }
 
+interface Session {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
 export default function Page() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
 
-  const conversations = [
-    { id: "1", title: "Mystery Novel Recommendations", timestamp: "2 hours ago" },
-    { id: "2", title: "Science Fiction Classics", timestamp: "Yesterday" },
-    { id: "3", title: "Best Fantasy Series", timestamp: "3 days ago" },
-  ];
+  useEffect(() => {
+    const storedToken = localStorage.getItem("token");
+    setToken(storedToken);
+  }, []);
+
+  const fetchSessions = useCallback(async () => {
+    if (!token) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/chat/sessions`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSessions(data);
+      }
+    } catch (error) {
+      console.error("Error fetching sessions:", error);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
+
+  const loadSession = async (sessionId: string) => {
+    if (!token) return;
+    
+    try {
+      const response = await fetch(`${API_URL}/chat/sessions/${sessionId}`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const loadedMessages: Message[] = data.messages.map((msg: {role: string; content: string; timestamp: string}, index: number) => ({
+          id: `${sessionId}-${index}`,
+          text: msg.content,
+          isBot: msg.role === "bot",
+          timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        }));
+        setMessages(loadedMessages);
+        setCurrentSessionId(sessionId);
+      }
+    } catch (error) {
+      console.error("Error loading session:", error);
+    }
+  };
+
+  const createSession = async (): Promise<string | null> => {
+    if (!token) return null;
+    
+    try {
+      const response = await fetch(`${API_URL}/chat/sessions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        await fetchSessions();
+        return data.id;
+      }
+    } catch (error) {
+      console.error("Error creating session:", error);
+    }
+    return null;
+  };
 
   const handleSendMessage = async (text: string) => {
     const userMessage: Message = {
@@ -46,17 +131,23 @@ export default function Page() {
     setIsTyping(true);
 
     try {
-      const apiUrl = "http://localhost:8000/chat"; 
-      
-      const response = await fetch(apiUrl, {
+      let sessionId = currentSessionId;
+      if (!sessionId && token) {
+        sessionId = await createSession();
+        setCurrentSessionId(sessionId);
+      }
+
+      const response = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          ...(token && { "Authorization": `Bearer ${token}` }),
         },
         body: JSON.stringify({ 
-            message: text,
-            top_k: 4,       
-            method: "hybrid"
+          message: text,
+          session_id: sessionId,
+          top_k: 4,       
+          method: "hybrid"
         }),
       });
 
@@ -72,18 +163,20 @@ export default function Page() {
         isBot: true,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         metadata: {
-          
-          source: data.sources[0].source, 
-          
+          source: data.sources?.[0]?.source, 
           intent: data.intent?.label, 
           probability: data.intent?.confidence_percent,
-          score: data.sources[0].score_hybrid,
+          score: data.sources?.[0]?.score_hybrid,
         },
       };
       setMessages((prev) => [...prev, botMessage]);
+      
+      if (token) {
+        await fetchSessions();
+      }
     } catch (error) {
       console.error("Error fetching chat response:", error);
-       const errorMessage: Message = {
+      const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         text: "Maaf, terjadi kesalahan saat menghubungi server. Silakan coba lagi.",
         isBot: true,
@@ -95,10 +188,35 @@ export default function Page() {
     }
   };
 
-  const handleNewConversation = () => {
+  const handleNewConversation = async () => {
     setMessages([]);
+    setCurrentSessionId(null);
     setIsSidebarOpen(false);
   };
+
+  const handleSelectConversation = async (id: string) => {
+    await loadSession(id);
+    setIsSidebarOpen(false);
+  };
+
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (diffHours < 1) return "Just now";
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  };
+
+  const conversations = sessions.map(s => ({
+    id: s.id,
+    title: s.title,
+    timestamp: formatTimestamp(s.updated_at),
+  }));
 
   return (
     <div className="flex h-screen w-full bg-gradient-to-br from-background via-background to-accent/5">
@@ -106,7 +224,8 @@ export default function Page() {
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
         conversations={conversations}
-        onSelectConversation={(id) => console.log("Selected:", id)}
+        activeConversationId={currentSessionId || undefined}
+        onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
       />
 
