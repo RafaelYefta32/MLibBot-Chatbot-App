@@ -62,7 +62,7 @@ export const ChatMessage = ({ message, isBot, timestamp, metadata }: ChatMessage
             )}
             {metadata.score !== undefined && (
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-                <span className="font-medium text-foreground/70">Score:</span> {(metadata.score).toFixed(1)}%
+                <span className="font-medium text-foreground/70">Score:</span> {(metadata.score).toFixed(1)}
               </span>
             )}
           </div>
