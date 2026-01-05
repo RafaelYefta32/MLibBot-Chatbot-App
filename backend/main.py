@@ -582,12 +582,12 @@ async def chat(req: ChatRequest):
         user_msg = {
             "role": "user",
             "content": req.message,
-            "timestamp": now.isoformat()
+            "timestamp": now.isoformat() + "Z"
         }
         bot_msg = {
             "role": "bot",
             "content": answer,
-            "timestamp": now.isoformat(),
+            "timestamp": now.isoformat() + "Z",
             "metadata": {
                 "source": contexts[0].get("source") if contexts else None,
                 "intent": label,

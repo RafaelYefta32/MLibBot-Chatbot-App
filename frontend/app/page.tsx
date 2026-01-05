@@ -201,7 +201,8 @@ export default function Page() {
   };
 
   const formatTimestamp = (dateString: string) => {
-    const date = new Date(dateString);
+    const utcDateString = dateString.endsWith('Z') ? dateString : dateString + 'Z';
+    const date = new Date(utcDateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
