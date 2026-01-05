@@ -587,7 +587,13 @@ async def chat(req: ChatRequest):
         bot_msg = {
             "role": "bot",
             "content": answer,
-            "timestamp": now.isoformat()
+            "timestamp": now.isoformat(),
+            "metadata": {
+                "source": contexts[0].get("source") if contexts else None,
+                "intent": label,
+                "probability": percent,
+                "score": contexts[0].get("score_hybrid") if contexts else None
+            }
         }
         
         session = await chat_sessions_collection.find_one({"_id": ObjectId(req.session_id)})

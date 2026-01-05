@@ -81,11 +81,12 @@ export default function Page() {
       
       if (response.ok) {
         const data = await response.json();
-        const loadedMessages: Message[] = data.messages.map((msg: {role: string; content: string; timestamp: string}, index: number) => ({
+        const loadedMessages: Message[] = data.messages.map((msg: {role: string; content: string; timestamp: string; metadata?: MessageMetadata}, index: number) => ({
           id: `${sessionId}-${index}`,
           text: msg.content,
           isBot: msg.role === "bot",
           timestamp: new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          metadata: msg.metadata,
         }));
         setMessages(loadedMessages);
         setCurrentSessionId(sessionId);
