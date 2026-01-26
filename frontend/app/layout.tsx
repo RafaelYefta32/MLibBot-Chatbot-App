@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <title>MLibBot</title>
+        <link rel="icon" type="image/png" href="/logo.png"></link>
       </head>
       <body>
         <QueryClientProvider client={queryClient}>
