@@ -58,6 +58,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    os.getenv("FRONTEND_URL", ""),
 ]
 
 app.add_middleware(

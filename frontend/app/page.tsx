@@ -8,7 +8,7 @@ import { ChatSidebar } from "@/components/ChatSidebar";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-const API_URL = "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 interface MessageMetadata {
   source?: string;
